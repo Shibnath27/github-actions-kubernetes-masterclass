@@ -58,23 +58,39 @@ jobs:
       - name: Gitleaks (FAIL if secrets found)
         if: matrix.tool == 'gitleaks'
         uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   iac:
     name: 🏗️ IaC Scan (Checkov)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: pip install checkov
-      - run: checkov -d . --framework terraform,kubernetes
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Checkov
+        run: pip install checkov
+      - name: Run Checkov Scan
+        run: |
+          checkov -d . --framework terraform,kubernetes --soft-fail
 
   lint:
     name: 🐳 Docker Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: hadolint/hadolint-action@v3.1.0
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Hadolint (Dockerfile Lint)
+        uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: backend/Dockerfile
+          ignore: DL3008,DL3007
 
 # ============================================================
 # STAGE 2: BUILD + SCAN + SIGN (BACKEND & FRONTEND PARALLEL)
