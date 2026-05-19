@@ -142,12 +142,19 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
      # 🏗️ Build image (LOAD locally for scan)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+            driver: docker-container
+            buildkitd-flags: --debug
+      
       - name: Build (Cache + Load)
         uses: docker/build-push-action@v6
         with:
           context: ${{ env.CONTEXT }}
           push: false
           load: true
+          outputs: type=docker
           tags: |
             ${{ env.IMAGE }}:${{ steps.tag.outputs.sha_short }}
             ${{ env.IMAGE }}:latest
