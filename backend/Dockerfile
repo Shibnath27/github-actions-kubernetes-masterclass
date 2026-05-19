@@ -9,10 +9,11 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 # Copy go mod first (better cache)
-COPY go.mod go.sum ./
+COPY go.mod ./
+RUN go mod tidy
 
 # Download dependencies (cached layer)
-RUN go mod download
+RUN go mod tidy
 
 # Copy source code
 COPY . .
