@@ -260,6 +260,8 @@ jobs:
   telemetry-dev:
     name: 📊 Telemetry Check (Dev)
     needs: deploy-dev
+    permissions:
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - name: Collect Workflow Telemetry
