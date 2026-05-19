@@ -1,20 +1,39 @@
-# Stage 1: Build
-FROM golang:1.26-alpine AS builder
+# ============================================================
+# STAGE 1: Builder (Optimized for caching)
+# ============================================================
+FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
 
+# Install git (needed for go modules)
+RUN apk add --no-cache git
+
+# Copy go mod first (better cache)
+COPY go.mod go.sum ./
+
+# Download dependencies (cached layer)
+RUN go mod download
+
+# Copy source code
 COPY . .
-RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o skillpulse .
 
-# Stage 2: Run
-FROM alpine:3.23
+# Build optimized binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o skillpulse .
 
-RUN apk --no-cache add ca-certificates
+# ============================================================
+# STAGE 2: Minimal Runtime (Distroless)
+# ============================================================
+FROM gcr.io/distroless/static:nonroot
 
 WORKDIR /app
 
+# Copy binary only
 COPY --from=builder /app/skillpulse .
+
+# Use non-root user (built-in)
+USER nonroot:nonroot
 
 EXPOSE 8080
 
-CMD ["./skillpulse"]
+ENTRYPOINT ["./skillpulse"]
