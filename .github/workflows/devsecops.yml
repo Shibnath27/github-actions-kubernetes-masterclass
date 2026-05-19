@@ -262,11 +262,8 @@ jobs:
     needs: deploy-dev
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          echo "Checking Prometheus targets..."
-          echo "Checking Loki logs..."
-          echo "Checking tracing..."
-          echo "Telemetry OK"
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
 
 # ============================================================
 # STAGE 6: DAST (DEV)
