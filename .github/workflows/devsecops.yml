@@ -42,11 +42,10 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Go
-        if: matrix.tool != 'gitleaks'
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
-          cache: true
+          go-version: '1.23'
+          cache: false
 
       - name: GoSec (Backend SAST)
         if: matrix.tool == 'gosec'
@@ -75,7 +74,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       - name: Install Checkov
         run: pip install checkov
       - name: Run Checkov Scan
