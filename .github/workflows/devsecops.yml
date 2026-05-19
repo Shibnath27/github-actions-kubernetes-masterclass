@@ -300,10 +300,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set image tag
-        id: tag
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
       - name: Update Prod Manifests
         run: |
           sed -i "s|image: ${{ env.DOCKER_USERNAME }}/skillpulse-backend:.*|image: ${{ env.DOCKER_USERNAME }}/skillpulse-backend:${{ steps.tag.outputs.sha_short }}|" k8s/20-backend.yaml
