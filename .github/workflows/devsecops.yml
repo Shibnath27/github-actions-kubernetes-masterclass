@@ -302,8 +302,8 @@ jobs:
 
       - name: Update Prod Manifests
         run: |
-          sed -i "s|image: .*skillpulse-backend:.*|image:${{ env.DOCKER_USERNAME }}/skillpulse-backend:${{ steps.tag.outputs.sha_short }}|" k8s/20-backend.yaml
-          sed -i "s|image: .*skillpulse-frontend:.*|image:${{ env.DOCKER_USERNAME }}/skillpulse-frontend:${{ steps.tag.outputs.sha_short }}|" k8s/30-frontend.yaml
+          sed -i "s|image: .*skillpulse-backend:.*|image: ${{ env.DOCKER_USERNAME }}/skillpulse-backend:${{ steps.tag.outputs.sha_short }}|" k8s/20-backend.yaml
+          sed -i "s|image: .*skillpulse-frontend:.*|image: ${{ env.DOCKER_USERNAME }}/skillpulse-frontend:${{ steps.tag.outputs.sha_short }}|" k8s/30-frontend.yaml
 
       - name: Commit & Push
         run: |
