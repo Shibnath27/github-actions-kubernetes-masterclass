@@ -3,24 +3,14 @@ name: 🚀 DevSecOps + GitOps Production Pipeline
 on:
   push:
     branches: [main, develop]
-    paths-ignore:
-      - '**.md'
-      - '.gitignore'
-      - 'LICENSE'
-      - 'screenshots/**'
-      - 'scripts/**'
-      - '.env.example'
-      - '.trivyignore'
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'k8s/**'
+      - 'mysql/**'
   pull_request:
-    branches: [main, develop]
-    paths-ignore:
-      - '**.md'
-      - '.gitignore'
-      - 'LICENSE'
-      - 'screenshots/**'
-      - 'scripts/**'
-      - '.env.example'
-      - '.trivyignore'
+    branches: [main]
+    
 env:
   DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/skillpulse-backend
@@ -243,7 +233,7 @@ jobs:
       - name: Set Short SHA
         id: tag
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-        
+
       - name: Update Dev Manifests
         run: |
           sed -i "s|backend:.*|backend:${{ steps.tag.outputs.sha_short }}|" k8s/20-backend.yaml

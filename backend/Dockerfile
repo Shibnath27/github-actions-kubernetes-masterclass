@@ -15,7 +15,7 @@ COPY go.mod ./
 RUN go mod tidy
 
 # Download dependencies (cached layer)
-RUN go mod download
+#RUN go mod download
 
 # Copy source code
 COPY . .
