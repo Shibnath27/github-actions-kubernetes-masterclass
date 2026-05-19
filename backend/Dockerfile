@@ -18,8 +18,7 @@ RUN go mod download
 COPY . .
 
 # Build optimized binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -ldflags="-s -w" -o skillpulse .
+RUN CGO_ENABLED=0 GOOS=linux go build -o skillpulse .
 
 # ============================================================
 # STAGE 2: Minimal Runtime (Distroless)
