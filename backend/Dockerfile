@@ -9,17 +9,17 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 # Copy go mod first (better cache)
-COPY go.mod ./
-RUN go mod tidy
+COPY go.mod go.sum ./
 
 # Download dependencies (cached layer)
-RUN go mod tidy
+RUN go mod download
 
 # Copy source code
 COPY . .
 
 # Build optimized binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o skillpulse .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o skillpulse .
 
 # ============================================================
 # STAGE 2: Minimal Runtime (Distroless)
