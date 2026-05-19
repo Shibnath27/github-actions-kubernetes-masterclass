@@ -15,14 +15,14 @@ COPY go.mod ./
 RUN go mod tidy
 
 # Download dependencies (cached layer)
-RUN go mod download
+#RUN go mod download
 
 # Copy source code
 COPY . .
 
 # Build optimized binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -ldflags="-s -w" -o skillpulse .
+RUN CGO_ENABLED=0 GOOS=linux go build -o skillpulse .
+
 
 # ============================================================
 # STAGE 2: Minimal Runtime (Distroless)
