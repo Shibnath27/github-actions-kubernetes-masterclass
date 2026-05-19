@@ -12,6 +12,7 @@ RUN apk add --no-cache git
 COPY go.mod go.sum ./
 
 # Download dependencies (cached layer)
+RUN go mod tidy
 RUN go mod download
 
 # Copy source code
