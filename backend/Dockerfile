@@ -9,7 +9,10 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 # Copy go mod first (better cache)
-COPY go.mod go.sum ./
+COPY go.mod ./
+
+# generate go.sum + fix deps
+RUN go mod tidy
 
 # Download dependencies (cached layer)
 RUN go mod download
