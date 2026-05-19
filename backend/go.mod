@@ -1,6 +1,6 @@
 module github.com/trainwithshubham/skillpulse
 
-go 1.26
+go 1.23
 
 require (
 	github.com/gin-gonic/gin v1.11.0 // or latest available
