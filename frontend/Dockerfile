@@ -1,24 +1,28 @@
 # ============================================================
 # STAGE: Secure Nginx Runtime
 # ============================================================
-FROM nginx:1.27-alpine
+FROM alpine:latest AS builder
+WORKDIR /app
+COPY . .
+
+FROM nginx:mainline-alpine-slim
 
 # Remove default config
-RUN rm -rf /etc/nginx/conf.d/*
-
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+#RUN rm -rf /etc/nginx/conf.d/*
 
 # Copy static assets
-COPY index.html /usr/share/nginx/html/
-COPY css/ /usr/share/nginx/html/css/
-COPY js/ /usr/share/nginx/html/js/
+COPY --from=builder /app/index.html /usr/share/nginx/html/
+COPY --from=builder /app/css /usr/share/nginx/html/css
+COPY --from=builder /app/js /usr/share/nginx/html/js
+
+# Copy custom nginx configuration
+COPY --from=builder /app/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Set correct permissions
-RUN chown -R nginx:nginx /usr/share/nginx/html
+#RUN chown -R nginx:nginx /usr/share/nginx/html
 
 # Switch to non-root user
-USER nginx
+#USER nginx
 
 EXPOSE 80
 
