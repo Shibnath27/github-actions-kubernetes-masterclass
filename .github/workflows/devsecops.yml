@@ -10,6 +10,7 @@ on:
       - 'screenshots/**'
       - 'scripts/**'
       - '.env.example'
+      - '.trivyignore'
   pull_request:
     branches: [main, develop]
     paths-ignore:
@@ -19,7 +20,7 @@ on:
       - 'screenshots/**'
       - 'scripts/**'
       - '.env.example'
-
+      - '.trivyignore'
 env:
   DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/skillpulse-backend
