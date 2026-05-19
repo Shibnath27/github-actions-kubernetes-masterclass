@@ -142,17 +142,25 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
      # 🏗️ Build image (LOAD locally for scan)
-      - name: Build Image (no push)
+      # 1. Build and Cache (Leverages and populates GHA cache)
+      - name: Build and Cache
         uses: docker/build-push-action@v6
         with:
           context: ${{ env.CONTEXT }}
           push: false
-          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # 2. Load locally for scanning (Instant run via cached layers)
+      - name: Build and Load Locally
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.CONTEXT }}
+          push: false
+          load: true # Sends image to the host Docker daemon
           tags: |
             ${{ env.IMAGE }}:${{ steps.tag.outputs.sha_short }}
             ${{ env.IMAGE }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha # Pulls from the cache populated in step 1
 
       # 🧾 SBOM
       - name: Generate SBOM
