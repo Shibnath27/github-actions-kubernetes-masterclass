@@ -144,7 +144,7 @@ jobs:
      # 🏗️ Build image (LOAD locally for scan)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        
+
       # 1. Build and Cache (Leverages and populates GHA cache)
       - name: Build and Cache
         uses: docker/build-push-action@v6
@@ -179,17 +179,9 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: '1'
 
-      # ✍️ Sign Image
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3
-
-      - name: Sign Image
-        run: |
-          cosign sign --yes ${{ env.IMAGE }}:${{ steps.tag.outputs.sha_short }}
-
-
       # 🚀 Push only if all above pass
       - name: Push Docker Image
+        id: push
         uses: docker/build-push-action@v6
         with:
             context: ${{ env.CONTEXT }}
@@ -199,6 +191,20 @@ jobs:
                 ${{ env.IMAGE }}:${{ steps.tag.outputs.sha_short }}
             cache-from: type=gha
             cache-to: type=gha,mode=max
+
+      # 🔍 Extract Digest (CRITICAL FIX)
+      - name: Get Image Digest
+        id: digest
+        run: |
+          echo "DIGEST=${{ steps.push.outputs.digest }}" >> $GITHUB_ENV
+
+      # ✍️ Sign Image
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign Image
+        run: |
+          cosign sign --yes ${{ env.IMAGE }}:${{ steps.tag.outputs.sha_short }}
 
 # ============================================================
 # STAGE 3: TESTING
