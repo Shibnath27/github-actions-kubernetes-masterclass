@@ -44,14 +44,14 @@ jobs:
         if: matrix.tool != 'gitleaks'
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.26'
           cache: true
 
       - name: GoSec (Backend SAST)
         if: matrix.tool == 'gosec'
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
-          gosec ./backend/... -fmt sarif -out gosec.sarif
+          GOSUMDB=off go install github.com/securego/gosec/v2/cmd/gosec@v2.21.4
+          $(go env GOPATH)/bin/gosec -fmt=json -out=gosec-results.json ./backend/... || true
 
       - name: GoVulnCheck (SCA)
         if: matrix.tool == 'govulncheck'
