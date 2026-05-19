@@ -50,13 +50,13 @@ jobs:
       - name: GoSec (Backend SAST)
         if: matrix.tool == 'gosec'
         run: |
-          GOSUMDB=off go install github.com/securego/gosec/v2/cmd/gosec@v2.21.4
+          GOSUMDB=off go install github.com/securego/gosec/v2/cmd/gosec@latest
           $(go env GOPATH)/bin/gosec -fmt=json -out=gosec-results.json ./backend/... || true
 
       - name: GoVulnCheck (SCA)
         if: matrix.tool == 'govulncheck'
         run: |
-          GOSUMDB=off go install golang.org/x/vuln/cmd/govulncheck@v1.1.3
+          GOSUMDB=off go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
           $(go env GOPATH)/bin/govulncheck ./backend/... || true
 
       - name: Gitleaks (FAIL if secrets found)
