@@ -14,6 +14,7 @@ module "eks" {
 
   # Cluster creator gets admin access via access_entries
   enable_cluster_creator_admin_permissions = true
+  enable_irsa                              = true
 
   # EKS Add-ons (latest versions auto-resolved)
   addons = {
@@ -47,14 +48,14 @@ module "eks" {
 
   # Managed Node Group
   eks_managed_node_groups = {
-    bankapp-ng = {
+    skillpulse-ng = {
       instance_types = [var.node_instance_type]
       desired_size   = var.node_desired_count
       min_size       = var.node_desired_count
       max_size       = var.node_max_count
 
       tags = {
-        NodeGroup = "bankapp"
+        NodeGroup = "skillpulse-ng-${local.environment}"
       }
     }
   }

@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: bankapp
+  name: skillpulse
   namespace: argocd
 spec:
   project: default
   source:
-    repoURL: https://github.com/Shibnath27/AI-Bankapp-Gitops-Platform.git
+    repoURL: https://github.com/Shibnath27/github-actions-kubernetes-masterclass.git
     targetRevision: main
     path: k8s
   destination:
     server: https://kubernetes.default.svc
-    namespace: bankapp
+    namespace: skillpulse
   syncPolicy:
     automated:
       prune: true

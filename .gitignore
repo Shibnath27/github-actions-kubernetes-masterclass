@@ -28,6 +28,7 @@ docs/skillpulse-kubernetes-guide.html
 .terraform.lock.hcl
 *.tfvars
 *.tfvars.json
+*.tfplan
 
 # OS
 .DS_Store

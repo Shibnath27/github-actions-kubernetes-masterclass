@@ -1,0 +1,101 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mysql-backup
+  namespace: skillpulse
+spec:
+  schedule: "0 2 * * *"    #evry day at 2
+  #schedule: "*/2 * * * *"   #every 2mins, for testing
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: secrets-sa
+          containers:
+            - name: mysql-backup
+              image: amazon/aws-cli:latest
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -x
+                  yum install -y mariadb105
+                  yum install -y mariadb105 gzip
+
+                  TIMESTAMP=$(date -u '+%Y%m%d_%H%M%S')
+                  BACKUP_FILE="/tmp/backup_${TIMESTAMP}.sql.gz"
+                  S3_KEY="$(date -u '+%Y/%m/%d')/backup_${TIMESTAMP}.sql.gz"
+
+                  echo "=====Dumping database: ${MYSQL_DATABASE}====="
+
+                  mysqldump \
+                    -h mysql.skillpulse.svc.cluster.local \
+                    -u "${MYSQL_USER}" \
+                    -p"${MYSQL_PASSWORD}" \
+                    --single-transaction \
+                    --no-tablespaces \
+                    --routines \
+                    --triggers \
+                    "${MYSQL_DATABASE}" | gzip > "${BACKUP_FILE}"
+
+                  echo "✓ Dump done — uploading to s3://${S3_BUCKET_NAME}/${S3_KEY}"
+
+                  aws s3 cp "${BACKUP_FILE}" "s3://${S3_BUCKET_NAME}/${S3_KEY}" \
+                    --region "${AWS_REGION}"
+
+                  rm -f "${BACKUP_FILE}"
+
+                  echo "=====Backup complete: s3://${S3_BUCKET_NAME}/${S3_KEY}====="
+              env:
+                - name: S3_BUCKET_NAME
+                  value: "skillpulse-mysql-backups" 
+                - name: AWS_REGION
+                  value: "us-west-2"
+
+                - name: MYSQL_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: skillpulse-db
+                      key: MYSQL_USER
+                - name: MYSQL_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: skillpulse-db
+                      key: MYSQL_PASSWORD
+                - name: MYSQL_DATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: skillpulse-db
+                      key: MYSQL_DATABASE
+
+              resources:
+                requests:
+                  memory: "512Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "1Gi"
+                  cpu: "500m"
+
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+                - name: secrets-store      # required — SA alone won't sync secret without this
+                  mountPath: /mnt/secrets-store
+                  readOnly: true
+
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 1Gi
+            - name: secrets-store
+              csi:
+                driver: secrets-store.csi.k8s.io
+                readOnly: true
+                volumeAttributes:
+                  secretProviderClass: aws-secrets 
