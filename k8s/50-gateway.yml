@@ -27,7 +27,6 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
-    # HTTPS — TLS terminated at Envoy Gateway using cert-manager certificate
     - name: https
       protocol: HTTPS
       port: 443
@@ -35,9 +34,9 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - group: ""
-            kind: Secret
-            name: skillpulse-tls
+        - group: ""
+          kind: Secret
+          name: skillpulse-tls
       allowedRoutes:
         namespaces:
           from: Same
@@ -92,3 +91,6 @@ spec:
       cookie:
         name: SKILLPULSE_AFFINITY
         ttl: 3600s
+  timeout:
+    http:
+      requestTimeout: 120s
