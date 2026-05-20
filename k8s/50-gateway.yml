@@ -67,8 +67,8 @@ spec:
       backendRefs:
         - group: ""
           kind: Service
-          name: skillpulse-service
-          port: 8080
+          name: frontend
+          port: 80
           weight: 1
 ---
 # Session persistence: Envoy Gateway bypasses K8s Service sessionAffinity and
