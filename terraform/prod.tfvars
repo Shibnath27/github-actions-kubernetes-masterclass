@@ -1,0 +1,13 @@
+aws_region         = "us-west-2"
+cluster_name       = "skillpulse-prod-eks"
+cluster_version    = "1.35"
+node_instance_type = "m7i-flex.large"
+node_desired_count = 3
+node_max_count     = 5
+vpc_name           = "skillpulse-prod-vpc"
+vpc_cidr           = "10.0.0.0/16"
+total_azs          = 3
+public_subnets     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+private_subnets    = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
+intra_subnets      = ["10.0.7.0/24", "10.0.8.0/24", "10.0.9.0/24"]
+environment = "prod"

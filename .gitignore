@@ -26,7 +26,6 @@ docs/skillpulse-kubernetes-guide.html
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
-*.tfvars
 *.tfvars.json
 *.tfplan
 

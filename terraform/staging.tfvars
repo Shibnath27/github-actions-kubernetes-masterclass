@@ -1,0 +1,13 @@
+aws_region         = "us-west-2"
+cluster_name       = "skillpulse-staging-eks"
+cluster_version    = "1.35"
+node_instance_type = "c7i-flex.large"
+node_desired_count = 2
+node_max_count     = 3
+vpc_name           = "skillpulse-staging-vpc"
+vpc_cidr           = "10.0.0.0/16"
+total_azs          = 2
+public_subnets     = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnets    = ["10.0.4.0/24", "10.0.5.0/24"]
+intra_subnets      = ["10.0.7.0/24", "10.0.8.0/24"]
+environment = "staging"
