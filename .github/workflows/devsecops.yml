@@ -252,7 +252,7 @@ jobs:
 # ============================================================
 
   telemetry-dev:
-    name: 📊 Telemetry Check
+    name: 📊 Telemetry Check (Dev)
     needs: deploy-dev
     runs-on: ubuntu-latest
     steps:
@@ -274,11 +274,15 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
+      - name: ZAP Scan
+        uses: zaproxy/action-baseline@v0.15.0
+        continue-on-error: true
+        with:
+          target: "https://dev.yourapp.com"
+          fail_action: false
 
 # ============================================================
-# STAGE 7: PROD DEPLOYMENT
+# STAGE 7: PROD DEPLOYMENT (GITOPS STYLE)
 # ============================================================
 
   deploy-prod:
@@ -320,7 +324,7 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        
+
       - name: Collect Workflow Telemetry
         uses: catchpoint/workflow-telemetry-action@v2
 # ============================================================
