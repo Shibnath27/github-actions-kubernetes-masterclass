@@ -23,7 +23,7 @@ terraform {
     bucket         = "skillpulse-terraform-state-shibnath-2026"
     key            = "eks-cluster/terraform.tfstate"
     region         = "us-west-2"
-    dynamodb_table = "skillpulse-terraform-locks"
+    dynamodb_table = "skillpulse-terraform-lock"
     encrypt        = true
   }
 }
