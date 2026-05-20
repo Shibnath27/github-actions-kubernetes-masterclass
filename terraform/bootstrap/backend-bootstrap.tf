@@ -1,13 +1,31 @@
-resource "aws_s3_bucket" "terraform_state" {
+terraform {
+  required_version = ">= 1.5"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-west-2"
+}
+
+# =========================
+# S3 Bucket for Terraform State
+# =========================
+resource "aws_s3_bucket" "tf_state" {
   bucket = "skillpulse-terraform-state"
 
   tags = {
-    Name = "Terraform State Bucket"
+    Name = "Terraform Remote State"
   }
 }
 
 resource "aws_s3_bucket_versioning" "versioning" {
-  bucket = aws_s3_bucket.terraform_state.id
+  bucket = aws_s3_bucket.tf_state.id
 
   versioning_configuration {
     status = "Enabled"
@@ -15,7 +33,7 @@ resource "aws_s3_bucket_versioning" "versioning" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "encryption" {
-  bucket = aws_s3_bucket.terraform_state.id
+  bucket = aws_s3_bucket.tf_state.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -25,7 +43,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "encryption" {
 }
 
 resource "aws_s3_bucket_public_access_block" "block_public" {
-  bucket = aws_s3_bucket.terraform_state.id
+  bucket = aws_s3_bucket.tf_state.id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -33,12 +51,11 @@ resource "aws_s3_bucket_public_access_block" "block_public" {
   restrict_public_buckets = true
 }
 
-# ============================================================
-# DynamoDB Table for Terraform State Locking
-# ============================================================
-
-resource "aws_dynamodb_table" "terraform_locks" {
-  name         = "skillpulse-terraform-locks"
+# =========================
+# DynamoDB Table for Locking
+# =========================
+resource "aws_dynamodb_table" "tf_lock" {
+  name         = "skillpulse-terraform-lock"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
 
@@ -48,6 +65,6 @@ resource "aws_dynamodb_table" "terraform_locks" {
   }
 
   tags = {
-    Name = "Terraform State Lock Table"
+    Name = "Terraform State Lock"
   }
 }
