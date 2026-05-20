@@ -126,10 +126,19 @@ spec:
         - name: init
           configMap:
             name: mysql-init
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: aws-secrets
   volumeClaimTemplates:
-    - metadata:
+    - apiVersion: v1	
+      kind: PersistentVolumeClaim
+      metadata:
         name: data
       spec:
+        storageClassName: gp3
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
