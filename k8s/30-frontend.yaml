@@ -33,7 +33,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: shibnath27/skillpulse-frontend:4dc997d
+          image: shibnath27/skillpulse-frontend:45bdd70
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
