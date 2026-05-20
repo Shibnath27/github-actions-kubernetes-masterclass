@@ -20,7 +20,7 @@ terraform {
     }
   }
   backend "s3" {
-    bucket         = "skillpulse-terraform-state"
+    bucket         = "skillpulse-terraform-state-shibnath-2026"
     key            = "eks-cluster/terraform.tfstate"
     region         = "us-west-2"
     dynamodb_table = "skillpulse-terraform-locks"

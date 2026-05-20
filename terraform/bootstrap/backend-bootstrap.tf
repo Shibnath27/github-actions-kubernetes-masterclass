@@ -17,10 +17,11 @@ provider "aws" {
 # S3 Bucket for Terraform State
 # =========================
 resource "aws_s3_bucket" "tf_state" {
-  bucket = "skillpulse-terraform-state"
+ bucket = "skillpulse-terraform-state-shibnath-2026"
 
   tags = {
-    Name = "Terraform Remote State"
+    Name        = "Terraform Remote State"
+    Environment = "global"
   }
 }
 
