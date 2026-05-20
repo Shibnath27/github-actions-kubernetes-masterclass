@@ -1,17 +1,5 @@
 ---
 apiVersion: v1
-kind: Secret
-metadata:
-  name: skillpulse-db
-  namespace: skillpulse
-type: Opaque
-stringData:
-  MYSQL_ROOT_PASSWORD: rootpassword123
-  MYSQL_DATABASE: skillpulse
-  MYSQL_USER: skillpulse
-  MYSQL_PASSWORD: skillpulse123
----
-apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mysql-init
@@ -73,6 +61,18 @@ spec:
       port: 3306
       targetPort: 3306
 ---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  fsType: ext4
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -89,6 +89,7 @@ spec:
       labels:
         app: mysql
     spec:
+      serviceAccountName: secrets-sa
       containers:
         - name: mysql
           image: mysql:8.4
@@ -104,6 +105,9 @@ spec:
               mountPath: /var/lib/mysql
             - name: init
               mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
               readOnly: true
           resources:
             requests:
