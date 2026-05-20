@@ -31,9 +31,20 @@ spec:
       labels:
         app: frontend
     spec:
+      initContainers:
+        - name: wait-for-backend
+          image: busybox:1.36
+          command: ["/bin/sh", "-c", "until nc -z backend 8080; do sleep 2; done"]
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "50m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
       containers:
         - name: frontend
-          image: shibnath27/skillpulse-frontend:d2e1a58
+          image: shibnath27/skillpulse-frontend:0c53edd
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
