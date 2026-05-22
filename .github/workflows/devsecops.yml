@@ -111,6 +111,19 @@ jobs:
         service: [backend, frontend]
 
     steps:
+      # 🎯 TELEMETRY: Track entire build process
+      - name: 📊 Collect Build Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 10                    # Every 10 seconds for longer build
+          proc_trace_min_duration: 500            # Show processes > 500ms
+          proc_trace_sys_enable: false            # Filter out system noise
+          proc_trace_chart_show: true
+          proc_trace_table_show: true
+          comment_on_pr: true                     # Show results in PR
+          job_summary: true
+          theme: dark
+          
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -206,6 +219,18 @@ jobs:
     needs: [security, iac, lint]
     runs-on: ubuntu-latest
     steps:
+      # 🎯 TELEMETRY: Track test execution
+      - name: 📊 Collect Test Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 2                     # More frequent for quick tests
+          proc_trace_min_duration: 50
+          proc_trace_chart_show: true
+          proc_trace_table_show: true
+          comment_on_pr: true
+          job_summary: true
+          theme: dark
+      
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
@@ -226,6 +251,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 🎯 TELEMETRY: Track deployment process
+      - name: 📊 Collect Deploy Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 5
+          proc_trace_min_duration: 100
+          job_summary: true
+          comment_on_pr: false
+          theme: dark
+      
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -245,25 +280,11 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add k8s/*.yaml
           git commit -m "chore(gitops): update dev images to ${{ steps.tag.outputs.sha_short }} [skip ci]" || echo "No changes to commit"
+          git pull --rebase
           git push
 
 # ============================================================
-# STAGE 5: TELEMETRY VALIDATION
-# ============================================================
-
-  telemetry-dev:
-    name: 📊 Telemetry Check (Dev)
-    needs: deploy-dev
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
-
-# ============================================================
-# STAGE 6: DAST (DEV)
+# STAGE 5: DAST (DEV)
 # ============================================================
 
   dast-dev:
@@ -282,7 +303,7 @@ jobs:
           fail_action: false
 
 # ============================================================
-# STAGE 7: PROD DEPLOYMENT (GITOPS STYLE)
+# STAGE 6: PROD DEPLOYMENT (GITOPS STYLE)
 # ============================================================
 
   deploy-prod:
@@ -292,6 +313,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 🎯 TELEMETRY: Track production deployment
+      - name: 📊 Collect Prod Deploy Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 5
+          proc_trace_min_duration: 100
+          job_summary: true
+          comment_on_pr: false
+          theme: dark
+
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -311,24 +342,11 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add k8s/*.yaml
           git commit -m "chore(gitops): update prod images to ${{ steps.tag.outputs.sha_short }} [skip ci]" || echo "No changes to commit"
+          git pull --rebase
           git push
 
 # ============================================================
-# STAGE 8: TELEMETRY VALIDATION (PROD)
-# ============================================================
-
-  telemetry-prod:
-    name: 📊 Telemetry Check (Prod)
-    needs: deploy-prod
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
-# ============================================================
-# STAGE 9: DAST (PROD)
+# STAGE 7: DAST (PROD)
 # ============================================================
 
   dast-prod:
@@ -343,5 +361,45 @@ jobs:
         uses: zaproxy/action-baseline@v0.15.0
         continue-on-error: true
         with:
-          target: "https://yourapp.com"
+          target: "https://52.42.53.147.nip.io"
           fail_action: false
+
+  # ============================================================
+  # STAGE 8: NOTIFY (PROD)
+  # ============================================================
+  notify-prod:
+    name: 📧 Dispatch Deployment Status Email
+    if: always()
+    needs: [deploy-prod, dast-prod]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Mail Alert
+        uses: dawidd6/action-send-mail@v3
+        continue-on-error: true
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "SkillPulse Deployment [${{ contains(needs.*.result, 'failure') && 'failure' || 'success' }}]"
+          to: shibnathdas27x@gmail.com
+          from: "SkillPulse DevSecOps Alert <${{ secrets.MAIL_USERNAME }}>"
+          body: |
+            ==================================================
+            SKILLPULSE DEVSECOPS MULTI-STAGE DEPLOYMENT REPORT
+            ==================================================
+            
+            Deployment Status: ${{ contains(needs.*.result, 'failure') && 'failure' || 'success' }}
+            
+            Repository Details:
+            - Repository: ${{ github.repository }}
+            - Target Branch: ${{ github.ref_name }}
+            - Author: ${{ github.actor }}
+            - Commit: ${{ github.sha }}
+            
+            Visual Pipeline Execution Logs:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            ==================================================
+            This is an automated production DevSecOps notification.
+            ==================================================

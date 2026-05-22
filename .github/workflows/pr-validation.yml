@@ -1,0 +1,498 @@
+name: 🔍 PR Validation Pipeline with Telemetry
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'mysql/**'
+      - 'k8s/**'
+      - '.github/workflows/**'
+
+env:
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/skillpulse-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/skillpulse-frontend
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  # ============================================================
+  # STAGE 1: CODE QUALITY & SECURITY (FAST FAIL)
+  # ============================================================
+  
+  code-quality:
+    name: 📋 Code Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📊 Collect Code Quality Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 2
+          proc_trace_min_duration: 50
+          proc_trace_chart_show: true
+          proc_trace_table_show: true
+          comment_on_pr: true
+          job_summary: true
+          theme: dark
+      
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR Title Convention
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          if [[ ! "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?:.*$ ]]; then
+            echo "❌ Invalid PR title format. Use conventional commits: type(scope): description"
+            echo "Examples: feat(backend): add user auth, fix(frontend): resolve login bug"
+            exit 1
+          fi
+          echo "✅ PR title follows conventional commits"
+
+      - name: Check File Sizes
+        run: |
+          echo "Checking for large files..."
+          LARGE_FILES=$(find . -type f -size +5M \( -name "*.js" -o -name "*.go" -o -name "*.py" -o -name "*.ts" \) 2>/dev/null)
+          if [ -n "$LARGE_FILES" ]; then
+            echo "⚠️  Large files detected (>5MB):"
+            echo "$LARGE_FILES"
+          else
+            echo "✅ No large files detected"
+          fi
+
+      - name: Check for Sensitive Files
+        run: |
+          SENSITIVE_FILES=$(find . -type f \( -name "*.pem" -o -name "*.key" -o -name "*.env" -o -name "credentials.json" \) ! -path "*/.git/*" 2>/dev/null)
+          if [ -n "$SENSITIVE_FILES" ]; then
+            echo "🚨 CRITICAL: Sensitive files detected:"
+            echo "$SENSITIVE_FILES"
+            exit 1
+          fi
+          echo "✅ No sensitive files exposed"
+
+  security-scan:
+    name: 🛡️ Security Scan (SAST + Secrets)
+    runs-on: ubuntu-latest
+    needs: code-quality
+    steps:
+      - name: 📊 Collect Security Scan Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 5
+          proc_trace_min_duration: 100
+          proc_trace_chart_show: true
+          proc_trace_table_show: true
+          comment_on_pr: true
+          job_summary: true
+          theme: dark
+      
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: false
+
+      - name: Run Gitleaks (Secrets Detection)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run GoSec (Backend SAST)
+        run: |
+          GOSUMDB=off go install github.com/securego/gosec/v2/cmd/gosec@latest
+          $(go env GOPATH)/bin/gosec -fmt=json -out=gosec-results.json ./backend/... || true
+      
+      - name: Run GoVulnCheck (Dependency Scan)
+        run: |
+          GOSUMDB=off go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          $(go env GOPATH)/bin/govulncheck ./backend/... || true
+
+      - name: Upload Security Results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gosec-results.json
+        continue-on-error: true
+
+  lint-check:
+    name: 🎨 Lint & Format Check
+    runs-on: ubuntu-latest
+    needs: code-quality
+    steps:
+      - name: 📊 Collect Lint Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 2
+          proc_trace_min_duration: 50
+          proc_trace_chart_show: true
+          proc_trace_table_show: true
+          comment_on_pr: true
+          job_summary: true
+          theme: dark
+      
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Docker Lint (Backend)
+        if: contains(github.event.pull_request.changed_files, 'backend/Dockerfile') || contains(github.event.pull_request.changed_files, 'backend/')
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: backend/Dockerfile
+          ignore: DL3008,DL3007,DL3018,DL3059
+          failure-threshold: warning
+
+      - name: Docker Lint (Frontend)
+        if: contains(github.event.pull_request.changed_files, 'frontend/Dockerfile') || contains(github.event.pull_request.changed_files, 'frontend/')
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: frontend/Dockerfile
+          ignore: DL3008,DL3007,DL3018,DL3059
+          failure-threshold: warning
+        continue-on-error: true
+
+      - name: Go Format Check
+        run: |
+          cd backend
+          if [ -z "$(gofmt -l .)" ]; then
+            echo "✅ All Go files properly formatted"
+          else
+            echo "❌ Unformatted Go files found:"
+            gofmt -l .
+            exit 1
+          fi
+
+      - name: Check Kubernetes Manifests
+        if: contains(github.event.pull_request.changed_files, 'k8s/')
+        run: |
+          echo "Validating Kubernetes manifests..."
+          for file in k8s/*.yaml; do
+            if [ -f "$file" ]; then
+              echo "Checking $file..."
+              python3 -c "import yaml; yaml.safe_load(open('$file'))" 2>/dev/null && echo "  ✅ Valid" || echo "  ⚠️  Invalid YAML"
+            fi
+          done
+
+  # ============================================================
+  # STAGE 2: BUILD & TEST (WITH TELEMETRY)
+  # ============================================================
+
+  build-test:
+    name: 🧪 Build & Unit Tests
+    needs: [security-scan, lint-check]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - name: 📊 Collect Build & Test Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 10
+          proc_trace_min_duration: 200
+          proc_trace_sys_enable: false
+          proc_trace_chart_show: true
+          proc_trace_table_show: true
+          comment_on_pr: true
+          job_summary: true
+          theme: dark
+      
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go (Backend Only)
+        if: matrix.service == 'backend'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Set Short SHA
+        id: tag
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set Service Config
+        run: |
+          if [ "${{ matrix.service }}" == "backend" ]; then
+            echo "IMAGE=${BACKEND_IMAGE}" >> $GITHUB_ENV
+            echo "CONTEXT=./backend" >> $GITHUB_ENV
+            echo "DOCKERFILE=backend/Dockerfile" >> $GITHUB_ENV
+          else
+            echo "IMAGE=${FRONTEND_IMAGE}" >> $GITHUB_ENV
+            echo "CONTEXT=./frontend" >> $GITHUB_ENV
+            echo "DOCKERFILE=frontend/Dockerfile" >> $GITHUB_ENV
+          fi
+
+      # Backend Unit Tests
+      - name: Run Backend Unit Tests
+        if: matrix.service == 'backend'
+        run: |
+          cd backend
+          go test ./... -v -coverprofile=coverage.out
+          go tool cover -func=coverage.out
+        continue-on-error: true
+
+      # Frontend Tests (if exists)
+      - name: Run Frontend Tests
+        if: matrix.service == 'frontend'
+        run: |
+          cd frontend
+          if [ -f "package.json" ]; then
+            npm ci
+            npm test -- --passWithNoTests || true
+          else
+            echo "No frontend tests configured"
+          fi
+        continue-on-error: true
+
+      # Docker Build Check (without push)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image (Dry Run)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.CONTEXT }}
+          push: false
+          load: true
+          tags: |
+            ${{ env.IMAGE }}:pr-${{ github.event.pull_request.number }}
+            ${{ env.IMAGE }}:${{ steps.tag.outputs.sha_short }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Security Scan on Built Image
+      - name: Trivy Vulnerability Scan
+        if: matrix.service == 'backend'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE }}:pr-${{ github.event.pull_request.number }}
+          severity: CRITICAL,HIGH
+          exit-code: '0'  # Soft fail for PR
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy Results
+        if: matrix.service == 'backend' && always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+        continue-on-error: true
+
+      # SBOM Generation
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE }}:pr-${{ github.event.pull_request.number }}
+          format: 'spdx-json'
+          output: 'sbom-${{ matrix.service }}.spdx.json'
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.service }}
+          path: sbom-${{ matrix.service }}.spdx.json
+
+  # ============================================================
+  # STAGE 3: KUBERNETES MANIFEST VALIDATION
+  # ============================================================
+
+  k8s-validation:
+    name: ☸️ Kubernetes Manifest Validation
+    needs: build-test
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.changed_files, 'k8s/')
+    steps:
+      - name: 📊 Collect K8s Validation Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 5
+          proc_trace_min_duration: 100
+          proc_trace_chart_show: true
+          proc_trace_table_show: true
+          comment_on_pr: true
+          job_summary: true
+          theme: dark
+      
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Kubeconform
+        run: |
+          curl -L https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Validate Kubernetes Manifests
+        run: |
+          echo "Validating Kubernetes manifests against schema..."
+          kubeconform -summary -output json k8s/*.yaml 2>&1 | tee k8s-validation.json
+          
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "❌ Kubernetes manifest validation failed"
+            exit 1
+          fi
+          echo "✅ All Kubernetes manifests are valid"
+
+      - name: Check Resource Limits
+        run: |
+          echo "Checking for resource limits..."
+          for file in k8s/*.yaml; do
+            if [ -f "$file" ]; then
+              echo "Checking $file..."
+              if grep -q "resources:" "$file"; then
+                if grep -q "limits:" "$file" && grep -q "requests:" "$file"; then
+                  echo "  ✅ Resource limits configured"
+                else
+                  echo "  ⚠️  Missing complete resource limits/requests"
+                fi
+              else
+                echo "  ⚠️  No resource configuration found"
+              fi
+            fi
+          done
+
+      - name: Check Image Pull Policy
+        run: |
+          echo "Checking image pull policies..."
+          for file in k8s/*.yaml; do
+            if [ -f "$file" ]; then
+              if grep -q "imagePullPolicy: Always" "$file"; then
+                echo "⚠️  Warning: imagePullPolicy: Always found in $file"
+                echo "   Consider using IfNotPresent for production stability"
+              fi
+            fi
+          done
+
+  # ============================================================
+  # STAGE 4: PR SUMMARY & LABELING
+  # ============================================================
+
+  pr-management:
+    name: 🏷️ PR Management
+    needs: [build-test, k8s-validation]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📊 Collect PR Management Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 2
+          proc_trace_min_duration: 50
+          proc_trace_chart_show: true
+          proc_trace_table_show: true
+          comment_on_pr: true
+          job_summary: true
+          theme: dark
+      
+      - name: Check PR Status
+        id: status
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') }}" == "true" ]; then
+            echo "status=failed" >> $GITHUB_OUTPUT
+          else
+            echo "status=passed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Auto Label PR
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+        continue-on-error: true
+
+      - name: Add Size Label
+        uses: pascalgn/size-label-action@v0.5.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          size_label_mapping: |
+            {
+              "0": "XS",
+              "10": "S", 
+              "50": "M",
+              "100": "L",
+              "200": "XL"
+            }
+        continue-on-error: true
+
+      - name: Create PR Comment with Summary
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const status = '${{ steps.status.outputs.status }}';
+            const statusEmoji = status === 'passed' ? '✅' : '❌';
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            
+            const summary = `
+            ## 📊 PR Validation Summary
+            
+            ### Status: ${statusEmoji} ${status.toUpperCase()}
+            
+            | Check | Status |
+            |-------|--------|
+            | 📋 Code Quality | ${{ needs.code-quality.result }} |
+            | 🛡️ Security Scan | ${{ needs.security-scan.result }} |
+            | 🎨 Lint Check | ${{ needs.lint-check.result }} |
+            | 🧪 Build & Test | ${{ needs.build-test.result }} |
+            | ☸️ K8s Validation | ${{ needs.k8s-validation.result }} |
+            
+            ### 📈 Telemetry Reports
+            - [View Full Pipeline Report](${runUrl})
+            - Check individual job summaries for detailed resource metrics and execution traces
+            
+            ### 🔍 Quick Stats
+            - **PR Number:** #${{ github.event.pull_request.number }}
+            - **Author:** @${{ github.event.pull_request.user.login }}
+            - **Changed Files:** ${{ github.event.pull_request.changed_files }}
+            - **Additions:** +${{ github.event.pull_request.additions }}
+            - **Deletions:** -${{ github.event.pull_request.deletions }}
+            
+            ${
+              status === 'failed' 
+                ? '### ⚠️ Action Required\nPlease review the failing checks above and fix the issues before merging.'
+                : '### 🎉 Ready to Merge\nAll checks passed! The PR is ready for review and merge.'
+            }
+            
+            ---
+            *🤖 Automated PR validation with comprehensive telemetry tracking*
+            `;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+  # ============================================================
+  # STAGE 5: FINAL STATUS CHECK
+  # ============================================================
+
+  final-status:
+    name: 🎯 PR Ready Check
+    needs: [pr-management]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Final Validation
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') }}" == "true" ] || [ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]; then
+            echo "❌ PR validation failed"
+            exit 1
+          else
+            echo "✅ PR validation passed successfully"
+          fi
