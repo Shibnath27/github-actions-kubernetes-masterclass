@@ -2,8 +2,8 @@
 name: SkillPulse Health Check
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"   # every 10 minutes
+  #schedule:
+    #- cron: "*/10 * * * *"   # every 10 minutes
   workflow_dispatch:           # manual trigger
 
 env:
