@@ -9,7 +9,7 @@ Step-by-step commands to deploy the full stack. Run these in order.
 - kubectl
 - Helm 3 (`brew install helm`)
 - Docker (for local image builds)
-- GitHub repo secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
+- GitHub repo secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `MAIL_USERNAME`, `MAIL_PASSWORD`
 
 ## Step 1: Provision Infrastructure
 
