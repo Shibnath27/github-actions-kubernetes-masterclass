@@ -390,4 +390,4 @@ Same app. Same pipeline shape. Different runtime — and a lot more power.
 
 ## Credits
 
-Built for the [TrainWithShubham](https://www.youtube.com/@TrainWithShubham) community. If this repo helped you understand a real CI/CD pipeline end to end, share it forward — that's how the community grows.
+*Built by Shibnath Das — forked from [TrainWithShubham/github-actions-kubernetes-masterclass](https://github.com/LondheShubham153/github-actions-kubernetes-masterclass)*. If this repo helped you understand a real CI/CD pipeline end to end, share it forward — that's how the community grows.
