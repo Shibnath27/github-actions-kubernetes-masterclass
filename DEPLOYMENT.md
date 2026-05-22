@@ -9,7 +9,12 @@ Step-by-step commands to deploy the full stack. Run these in order.
 - kubectl
 - Helm 3 (`brew install helm`)
 - Docker (for local image builds)
-- GitHub repo secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `MAIL_USERNAME`, `MAIL_PASSWORD`
+- GitHub repo secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `FRONTEND_URL`, `BACKEND_URL`, `KUBECONFIG_DATA`
+
+>Generate kubeconfig secret:
+>cat ~/.kube/config | base64 -w 0
+>Then add output to:
+>GitHub Repo → Settings → Secrets → Actions.
 
 ## Step 1: Provision Infrastructure
 
@@ -99,8 +104,8 @@ After ArgoCD syncs the ClusterIssuer and updated Gateway (with HTTPS listener), 
 - `<your-domain>` → `<NLB hostname from Step 4>`
 ```bash
 # Check certificate status
-kubectl get certificate -n bankapp
-kubectl get secret bankapp-tls -n bankapp
+kubectl get certificate -n skillpulse
+kubectl get secret skillpulse-tls -n skillpulse
 ```
 
 ## step 6: Free Certificate Access Note
