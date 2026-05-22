@@ -44,12 +44,6 @@ echo ""
 
 cd terraform
 
-echo "======================================="
-echo "STEP 1 - Terraform Init"
-echo "======================================="
-
-terraform init -reconfigure
-
 # ======================================
 # STEP 2 - SELECT WORKSPACE
 # ======================================
@@ -226,21 +220,6 @@ echo "---------------------------------------"
 
  
 cd "$REPO_ROOT"
-
-# ======================================
-# STEP 7 - DESTROY BOOTSTRAP
-# ======================================
-
-echo ""
-echo "======================================="
-echo "STEP 7 - Destroy Backend Bootstrap"
-echo "======================================="
-
-cd bootstrap
-
-terraform init
-
-terraform destroy -auto-approve
 
 # ======================================
 # COMPLETE

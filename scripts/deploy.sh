@@ -39,39 +39,24 @@ echo "Selected Environment: $ENV"
 echo ""
 
 # ================================
-# STEP 1 - BACKEND BOOTSTRAP
-# ================================
-
-echo "======================================="
-echo "STEP 1 - Terraform Backend Bootstrap"
-echo "======================================="
-
-cd terraform/bootstrap
-
-terraform init
-
-terraform apply -auto-approve
-
-cd ..
-
-# ================================
 # STEP 2 - TERRAFORM INIT
 # ================================
 
 echo ""
 echo "======================================="
-echo "STEP 2 - Terraform Init"
+echo "STEP 1 - Terraform Init"
 echo "======================================="
 
+cd terraform
 terraform init -reconfigure
 
 # ================================
-# STEP 3 - CREATE WORKSPACES
+# STEP 2 - CREATE WORKSPACES
 # ================================
 
 echo ""
 echo "======================================="
-echo "STEP 3 - Ensure Terraform Workspaces"
+echo "STEP 2 - Ensure Terraform Workspaces"
 echo "======================================="
 
 terraform workspace new dev || true
@@ -79,35 +64,35 @@ terraform workspace new staging || true
 terraform workspace new prod || true
 
 # ================================
-# STEP 4 - SELECT WORKSPACE
+# STEP 3 - SELECT WORKSPACE
 # ================================
 
 echo ""
 echo "======================================="
-echo "STEP 4 - Select Workspace"
+echo "STEP 3 - Select Workspace"
 echo "======================================="
 
 terraform workspace select $ENV
 
 # ================================
-# STEP 5 - TERRAFORM PLAN
+# STEP 4 - TERRAFORM PLAN
 # ================================
 
 echo ""
 echo "======================================="
-echo "STEP 5 - Terraform Plan"
+echo "STEP 4 - Terraform Plan"
 echo "======================================="
 
 terraform plan \
   -var-file="envs/${ENV}.tfvars"
 
 # ================================
-# STEP 6 - TERRAFORM APPLY
+# STEP 5 - TERRAFORM APPLY
 # ================================
 
 echo ""
 echo "======================================="
-echo "STEP 6 - Terraform Apply"
+echo "STEP 5 - Terraform Apply"
 echo "======================================="
 
 terraform apply \
@@ -115,12 +100,12 @@ terraform apply \
   -auto-approve
 
 # ================================
-# STEP 7 - UPDATE KUBECONFIG
+# STEP 6 - UPDATE KUBECONFIG
 # ================================
 
 echo ""
 echo "======================================="
-echo "STEP 7 - Update kubeconfig"
+echo "STEP 6 - Update kubeconfig"
 echo "======================================="
 
 KUBECTL_CMD=$(terraform output -raw configure_kubectl)
@@ -128,24 +113,24 @@ echo "Running: $KUBECTL_CMD"
 eval "$KUBECTL_CMD"
 
 # ================================
-# STEP 8 - VERIFY CLUSTER
+# STEP 7 - VERIFY CLUSTER
 # ================================
 
 echo ""
 echo "======================================="
-echo "STEP 8 - Verify Cluster"
+echo "STEP 7 - Verify Cluster"
 echo "======================================="
 
 kubectl get nodes
 kubectl get pods -n argocd
 
 # ================================
-# STEP 9 - APPLY K8S MANIFESTS
+# STEP 8 - APPLY K8S MANIFESTS
 # ================================
 
 echo ""
 echo "======================================="
-echo "STEP 9 - Apply Kubernetes Manifests"
+echo "STEP 8 - Apply Kubernetes Manifests"
 echo "======================================="
 
 cd ../k8s
@@ -172,12 +157,12 @@ do
 done
 
 # ================================
-# STEP 10 - WAIT
+# STEP 9 - WAIT
 # ================================
 
 echo ""
 echo "======================================="
-echo "STEP 10 - Wait For Pods"
+echo "STEP 9 - Wait For Pods"
 echo "======================================="
 
 kubectl wait --for=condition=Ready pods --all -n skillpulse --timeout=600s || true
@@ -185,18 +170,18 @@ kubectl get gatewayclass
 kubectl get pods -n cert-manager
 kubectl get pods -n skillpulse
 # ================================
-# STEP 11 - APPLY ARGOCD APP
+# STEP 10 - APPLY ARGOCD APP
 # ================================
 
 echo ""
 echo "======================================="
-echo "STEP 11 - Apply ArgoCD Application"
+echo "STEP 10 - Apply ArgoCD Application"
 echo "======================================="
 
 kubectl apply -f ../argocd/application.yml
 
 # ================================
-# STEP 12 - SHOW STATUS
+# STEP 11 - SHOW STATUS
 # ================================
 
 echo ""
