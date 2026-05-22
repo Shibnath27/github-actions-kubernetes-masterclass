@@ -115,7 +115,7 @@ For example, if the resolved IP is 52.42.53.147, the application will be accessi
 ```
 This keeps the certificate and host-based routing aligned with the current Gateway load balancer address.
 
-## Step 7: Install kube-prometheus-stack
+## Step 7: Verify kube-prometheus-stack
 
 ```bash
 # Get Grafana URL
@@ -168,11 +168,12 @@ curl -s -o /dev/null -w "%{http_code}" -L http://<APP_URL>/login
 > and Security Groups outside of Terraform. If you run `terraform destroy` first, the EKS cluster
 > is gone but those orphaned resources block VPC deletion. Always clean up in this order:
 
-```bash
 # 1. Delete ArgoCD app (removes Gateway → deletes Envoy Gateway NLB)
+```bash
 kubectl delete -f argocd/application.yml
-
+```
 # 2. Destroy infrastructure
+```bash
 cd terraform
 terraform destroy -var-file=envs/dev.tfvars
 ```

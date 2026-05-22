@@ -1,0 +1,240 @@
+# .github/workflows/health-check.yml
+name: SkillPulse Health Check
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # every 10 minutes
+  workflow_dispatch:           # manual trigger
+
+env:
+  FRONTEND_URL: ${{ secrets.FRONTEND_URL }}    # set in repo secrets
+  BACKEND_URL:  ${{ secrets.BACKEND_URL }}     # set in repo secrets
+  TIMEOUT: 10                                  # curl timeout in seconds
+  MAX_RESPONSE_MS: 3000                        # alert if slower than 3s
+
+jobs:
+  health-check:
+    name: App Health Monitoring
+    runs-on: ubuntu-latest
+    outputs:
+      frontend_status: ${{ steps.frontend.outputs.status }}
+      backend_status:  ${{ steps.backend.outputs.status }}
+      k8s_status:      ${{ steps.k8s.outputs.status }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Frontend ───────────────────────────────────────────
+      - name: Check Frontend
+        id: frontend
+        run: |
+          echo "Checking Frontend: $FRONTEND_URL"
+          RESPONSE=$(curl -o /dev/null -s \
+            -w "%{http_code}:%{time_total}" \
+            --max-time $TIMEOUT \
+            --retry 3 \
+            --retry-delay 5 \
+            "$FRONTEND_URL")
+
+          HTTP_CODE=$(echo $RESPONSE | cut -d: -f1)
+          TIME_MS=$(echo $RESPONSE | cut -d: -f2 | awk '{printf "%d", $1*1000}')
+
+          echo "HTTP status : $HTTP_CODE"
+          echo "Response time: ${TIME_MS}ms"
+          echo "status=$HTTP_CODE" >> $GITHUB_OUTPUT
+          echo "response_time=${TIME_MS}ms" >> $GITHUB_OUTPUT
+
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Frontend returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          if [ "$TIME_MS" -gt "$MAX_RESPONSE_MS" ]; then
+            echo "::warning::Frontend slow response: ${TIME_MS}ms (threshold: ${MAX_RESPONSE_MS}ms)"
+          fi
+
+          echo "Frontend is UP (${TIME_MS}ms)"
+
+      # ── Backend API ────────────────────────────────────────
+      - name: Check Backend API
+        id: backend
+        run: |
+          echo "Checking Backend: $BACKEND_URL/health"
+          RESPONSE=$(curl -s \
+            -w "\n%{http_code}:%{time_total}" \
+            --max-time $TIMEOUT \
+            --retry 3 \
+            --retry-delay 5 \
+            "$BACKEND_URL/health")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1 | cut -d: -f1)
+          TIME_MS=$(echo "$RESPONSE" | tail -1 | cut -d: -f2 | awk '{printf "%d", $1*1000}')
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "HTTP status : $HTTP_CODE"
+          echo "Response time: ${TIME_MS}ms"
+          echo "Body: $BODY"
+          echo "status=$HTTP_CODE" >> $GITHUB_OUTPUT
+
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Backend API returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          # Validate JSON health response if present
+          if echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('status') in ['UP','healthy','ok']" 2>/dev/null; then
+            echo "Backend health payload is valid"
+          else
+            echo "::warning::Backend returned 200 but health payload unrecognised"
+          fi
+
+          if [ "$TIME_MS" -gt "$MAX_RESPONSE_MS" ]; then
+            echo "::warning::Backend slow response: ${TIME_MS}ms"
+          fi
+
+          echo "Backend API is HEALTHY (${TIME_MS}ms)"
+
+      # ── Kubernetes ─────────────────────────────────────────
+      - name: Kubernetes Cluster Check
+        id: k8s
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_DATA }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_DATA" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+          echo "=== Node status ==="
+          kubectl get nodes -o wide
+
+          echo "=== Not-running pods ==="
+          NOT_RUNNING=$(kubectl get pods -A \
+            --field-selector='status.phase!=Running,status.phase!=Succeeded' \
+            --no-headers 2>/dev/null | wc -l)
+          echo "Unhealthy pods: $NOT_RUNNING"
+          echo "status=$NOT_RUNNING" >> $GITHUB_OUTPUT
+
+          if [ "$NOT_RUNNING" -gt 0 ]; then
+            echo "::warning::$NOT_RUNNING pod(s) not in Running/Succeeded state"
+            kubectl get pods -A \
+              --field-selector='status.phase!=Running,status.phase!=Succeeded'
+          fi
+
+          echo "=== Deployments ==="
+          kubectl get deployments -A
+
+          echo "=== Recent events (warnings) ==="
+          kubectl get events -A \
+            --field-selector=type=Warning \
+            --sort-by='.lastTimestamp' \
+            | tail -10
+
+      # ── Summary ────────────────────────────────────────────
+      - name: Health Summary
+        if: always()
+        run: |
+          echo "### Health Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Component  | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend   | ${{ steps.frontend.outputs.status == '200' && 'UP' || 'DOWN' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend    | ${{ steps.backend.outputs.status  == '200' && 'UP' || 'DOWN' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| K8s pods   | ${{ steps.k8s.outputs.status == '0' && 'Healthy' || 'Degraded' }} |" >> $GITHUB_STEP_SUMMARY
+
+      # ── Slack alert on failure ─────────────────────────────
+      - name: Slack Alert on Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": ":rotating_light: *SkillPulse Health Check Failed*",
+              "attachments": [{
+                "color": "danger",
+                "fields": [
+                  {
+                    "title": "Frontend",
+                    "value": "${{ steps.frontend.outputs.status == '200' && 'UP' || 'DOWN' }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Backend",
+                    "value": "${{ steps.backend.outputs.status == '200' && 'UP' || 'DOWN' }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Unhealthy Pods",
+                    "value": "${{ steps.k8s.outputs.status }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Run",
+                    "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                    "short": false
+                  }
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      # ── Slack alert on recovery ────────────────────────────
+      - name: Slack Alert on Recovery
+        if: success()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": ":white_check_mark: *SkillPulse is Healthy* — all checks passed"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      # ── Email alert (always — healthy or down) ─────────────
+      - name: Send Mail Alert
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        continue-on-error: true        # never block the workflow on mail failure
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: >
+            SkillPulse Health Monitor
+            [${{ job.status == 'success' && 'HEALTHY' || 'DOWN' }}]
+            — ${{ github.ref_name }}
+          to: shibnathdas27x@gmail.com
+          from: >
+            SkillPulse DevSecOps Alert <${{ secrets.MAIL_USERNAME }}>
+          body: |
+            ==================================================
+              SKILLPULSE APPLICATION HEALTH REPORT
+            ==================================================
+
+            Overall Status : ${{ job.status == 'success' && '✅ HEALTHY' || '❌ UNHEALTHY / DOWN' }}
+            Timestamp      : ${{ github.event.head_commit.timestamp }}
+
+            ── Component Status ───────────────────────────────
+            Frontend   : ${{ steps.frontend.outputs.status == '200' && '✅ UP' || '❌ DOWN' }}
+            Backend    : ${{ steps.backend.outputs.status  == '200' && '✅ UP' || '❌ DOWN' }}
+            K8s Pods   : ${{ steps.k8s.outputs.status == '0' && '✅ Healthy' || '⚠️  Degraded' }}
+
+            ── Endpoints ──────────────────────────────────────
+            Frontend URL         : ${{ secrets.FRONTEND_URL }}
+            Backend Health Check : ${{ secrets.BACKEND_URL }}/health
+
+            ── Repository Details ─────────────────────────────
+            Repository   : ${{ github.repository }}
+            Branch       : ${{ github.ref_name }}
+            Triggered By : ${{ github.actor }}
+            Commit SHA   : ${{ github.sha }}
+
+            ── Workflow Run ───────────────────────────────────
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ==================================================
+              Automated DevSecOps Monitoring — SkillPulse
+            ==================================================
